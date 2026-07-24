@@ -1,0 +1,16 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Shared preset: group the homelab/ci-components component pins into one soaked MR. Extend with `local>example-org/renovate:ci-components` instead of copying the rule per repo.",
+  "packageRules": [
+    {
+      "description": "CI/CD components - track the homelab/ci-components @version pins in the include block. The gitlabci manager collapses every `component: source.example.com/homelab/ci-components/<name>@<ver>` line to a single homelab/ci-components dep (gitlab-tags datasource), so one grouped MR bumps all of them together. A short soak lets a fresh component release settle; CI proves the pipeline still renders before merge.",
+      "matchManagers": ["gitlabci"],
+      "matchPackageNames": ["homelab/ci-components"],
+      "groupName": "ci-components",
+      "minimumReleaseAge": "3 days",
+      "commitMessagePrefix": "ci(components):",
+      "labels": ["ci", "components"],
+      "prPriority": 8
+    }
+  ]
+}

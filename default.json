@@ -1,0 +1,87 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Shared Renovate base preset for the homelab repos. Each repo extends this via `local>example-org/renovate` and adds only its own packageRules, customManagers, and dashboard text.",
+  "extends": ["config:best-practices", "mergeConfidence:all-badges"],
+  "timezone": "Europe/Berlin",
+  "labels": ["renovate", "dependencies"],
+  "assignees": ["@maintainer"],
+  "rebaseWhen": "behind-base-branch",
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 0,
+  "branchConcurrentLimit": 10,
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "commitMessageAction": "Update",
+  "commitMessageTopic": "{{depName}}",
+  "automerge": false,
+  "platformAutomerge": false,
+  "separateMajorMinor": true,
+  "separateMinorPatch": true,
+  "separateMultipleMajor": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "renovate"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "pre-commit": {
+    "enabled": true
+  },
+  "hostRules": [
+    {
+      "description": "Docker Hub authentication to avoid rate limiting (credentials injected bot-side via RENOVATE_HOST_RULES).",
+      "matchHost": "docker.io",
+      "hostType": "docker"
+    }
+  ],
+  "prBodyTemplate": "{{{header}}}{{{table}}}{{{warnings}}}{{{notes}}}{{{changelogs}}}{{{configDescription}}}{{{controls}}}{{{footer}}}",
+  "prBodyColumns": [
+    "Package",
+    "Update",
+    "Type",
+    "New value",
+    "Package file",
+    "References"
+  ],
+  "prBodyDefinitions": {
+    "Package": "{{{depNameLinked}}}{{#if newName}}{{#unless (equals depName newName)}} → {{{newNameLinked}}}{{/unless}}{{/if}}",
+    "Type": "{{{depType}}}",
+    "Update": "{{{updateType}}}",
+    "New value": "{{{newValue}}}",
+    "References": "{{{references}}}",
+    "Package file": "{{{packageFile}}}"
+  },
+  "packageRules": [
+    {
+      "description": "CI build base (.ci/docker/Dockerfile) - patch stabilization. The CI image is the shared build/validation base for every repo, so soak its tool/base-image updates before they land. Repos override their own app-dep soak locally.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "CI build base (.ci/docker/Dockerfile) - minor stabilization.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["minor"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "CI build base (.ci/docker/Dockerfile) - major stabilization.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "14 days"
+    },
+    {
+      "description": "Low-risk auto-merge: digest and pin updates merge themselves once CI is green (soak windows above still apply first). platformAutomerge stays off - Renovate merges only after the MR pipeline passes. A repo can opt out per rule with automerge:false.",
+      "matchUpdateTypes": ["digest", "pin", "pinDigest"],
+      "automerge": true,
+      "labels": ["renovate", "dependencies", "automerge"]
+    },
+    {
+      "description": "Low-risk auto-merge: patch updates for stable (>=1.0.0) packages. 0.x patches can be breaking under semver and keep manual review, as do all minor/major updates.",
+      "matchUpdateTypes": ["patch"],
+      "matchCurrentVersion": "!/^v?0\\./",
+      "automerge": true,
+      "labels": ["renovate", "dependencies", "automerge"]
+    }
+  ]
+}

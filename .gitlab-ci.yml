@@ -1,0 +1,161 @@
+---
+# =============================================================================
+# example-org/renovate — central Renovate runner for the homelab GitLab group.
+#
+# This is the single, dedicated runner project recommended by the upstream
+# renovate-runner project (https://gitlab.com/renovate-bot/renovate-runner).
+# One project, one schedule, one shared cache, and one group token autodiscover
+# and update every `homelab/*` repository that contains a `renovate.json`. It
+# replaces the four per-repo `renovate:` jobs that previously each ran on their
+# own pipeline and schedule.
+#
+# This project also hosts the shared base preset (`default.json`). Every
+# repository extends it via `local>example-org/renovate`, and this runner's own
+# `renovate.json` extends both the preset and the upstream runner preset so the
+# template ref and engine image stay current.
+#
+# Required group CI/CD variables (Settings -> CI/CD -> Variables, masked):
+#   RENOVATE_TOKEN             GitLab group access token (scopes: api,
+#                              read_user, write_repository). Authorises the bot
+#                              to read and update every homelab/* repository.
+#   RENOVATE_GITHUB_COM_TOKEN  github.com read-only PAT. Raises the github.com
+#                              API limit from 60/hr (anonymous) to 5000/hr for
+#                              datasource lookups and changelog fetching.
+#   DOCKER_HUB_USERNAME        Docker Hub credentials, referenced by the
+#   DOCKER_HUB_TOKEN           RENOVATE_HOST_RULES variable below.
+#
+# Trigger: one daily pipeline schedule on this project (cron `0 3 * * *`,
+# Europe/Berlin). The renovate job runs on schedules only (see the upstream
+# template's rules); start the first run with the schedule's play button.
+# =============================================================================
+
+# Pin every job to the homelab gitlab-runner (Docker executor, tags:[docker]),
+# matching the four working repos. A new project does not inherit a tag, and the
+# runner only serves `docker`-tagged jobs, so an untagged renovate job stays
+# stuck in pending.
+default:
+  tags:
+    - docker
+
+include:
+  # Upstream renovate-runner template; provides the hidden `.renovate` job and
+  # the `renovate` job (schedule-gated). The ref is Renovate-tracked via this
+  # project's renovate.json (gitlab>renovate-bot/renovate-runner preset). Pulled
+  # remotely from gitlab.com — no in-house mirror of the template is required.
+  - remote: https://gitlab.com/renovate-bot/renovate-runner/-/raw/v26.0.1/templates/renovate.gitlab-ci.yml
+  # Bypass-proof secret scan, like every other homelab repo. This repo has no
+  # thin CI image, so CI_IMAGE (below) points straight at ci-base; the gitleaks
+  # config comes from the defaults baked into ci-base at /opt/ci/config/.
+  - component: source.example.com/homelab/ci-components/scan-secrets@2.1.14
+    inputs:
+      stage: validate
+  # Conventional-commit gate on MRs (group-wide commit grammar).
+  - component: source.example.com/homelab/ci-components/lint-commits@2.1.14
+    inputs:
+      stage: validate
+  # GitHub portfolio mirror. This repo has no thin CI image, so the mirror runs
+  # on ci-base directly (it carries the /opt/ci publish tooling + sanitize-base).
+  # Pinned to >=2.1.2: the mirror job must not ingest the renovate job's
+  # debug-log artifact (dependencies: [] fix).
+  - component: source.example.com/homelab/ci-components/mirror-github@2.1.14
+    inputs:
+      image: registry.example.com/homelab/ci-components/ci:latest
+      repo_name: renovate
+
+# validate for this repo's own jobs; deploy is where the upstream template's
+# `renovate` job runs (its hardcoded stage); mirror is the GitHub mirror.
+stages:
+  - validate
+  - deploy
+  - mirror
+
+# -----------------------------------------------------------------------------
+# Server-side validation of the preset files that govern the whole estate.
+# Every consumer extends default.json (and the modular presets), so a syntax or
+# schema error here breaks dependency updates for all repos — pre-commit's
+# local renovate-config-validator can be bypassed; this job cannot.
+# -----------------------------------------------------------------------------
+validate:renovate-config:
+  stage: validate
+  image: $CI_RENOVATE_IMAGE
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: &config-changes
+        - "*.json"
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
+      changes: *config-changes
+  script:
+    - renovate-config-validator --strict default.json dockerfile-args.json ci-components.json renovate.json
+
+variables:
+  # Pin the Renovate engine to a digest-free minor tag (Renovate-tracked). One
+  # version governs the whole homelab. The upstream template defaults this to a
+  # floating `:43`, which we intentionally override for reproducibility.
+  CI_RENOVATE_IMAGE: ghcr.io/renovatebot/renovate:43.278
+
+  # Image for the scan-secrets component (its image input defaults to
+  # $CI_IMAGE). This repo has no thin CI image of its own — ci-base is enough.
+  CI_IMAGE: registry.example.com/homelab/ci-components/ci:latest
+
+  # Discover every homelab/* project the RENOVATE_TOKEN can see that already has
+  # a renovate.json. `--onboarding=false` means no onboarding PRs are opened for
+  # un-configured projects, and the `homelab/*` filter keeps the bot off any
+  # other group the token might reach.
+  RENOVATE_EXTRA_FLAGS: --autodiscover=true --autodiscover-filter=homelab/* --onboarding=false
+
+  # Persist repo data between runs so Renovate can `git fetch` instead of a full
+  # `git clone` each time. Complements the template's
+  # RENOVATE_REPOSITORY_CACHE=enabled and the widened cache.paths below.
+  RENOVATE_PERSIST_REPO_DATA: "true"
+
+  # Post-upgrade command execution. proxmox-infra (scripts/renovate-update-sha256.sh)
+  # and helm-charts (an inline `sed` appVersion bump) define postUpgradeTasks in
+  # their own renovate.json; the allow-list is a trusted, bot-side setting that
+  # must live here, not in repo config. Commands run against each repository's
+  # own cloned checkout under autodiscover.
+  RENOVATE_ALLOW_POST_UPGRADE_COMMAND_TEMPLATING: "true"
+  RENOVATE_ALLOWED_COMMANDS: '["^sed ", "^scripts/renovate-update-sha256\\.sh "]'
+
+  # Authenticate Docker Hub datasource lookups to avoid anonymous pull-rate
+  # limits. Credentials come from the group CI/CD variables above.
+  RENOVATE_HOST_RULES: '[{"matchHost":"docker.io","hostType":"docker","username":"$DOCKER_HUB_USERNAME","password":"$DOCKER_HUB_TOKEN"}]'
+
+  # github.com authentication for datasource lookups and changelog fetching.
+  GITHUB_COM_TOKEN: $RENOVATE_GITHUB_COM_TOKEN
+
+  # --- Optional settings, documented for future use (uncomment to enable) ------
+  # These are NOT active. They are recorded here so the common operational knobs
+  # are discoverable without re-reading the upstream docs. Each maps to a
+  # self-hosted config option (https://docs.renovatebot.com/self-hosted-configuration/).
+  #
+  # Console log verbosity (info|debug|trace). The template already writes a
+  # debug-level NDJSON artifact (LOG_FILE / LOG_FILE_LEVEL); set this only to
+  # make the live job log verbose while diagnosing config.
+  # LOG_LEVEL: debug
+  #
+  # Dry run without opening/updating/closing branches or PRs. Useful to preview
+  # behaviour after a config change. Values: extract | lookup | full.
+  # RENOVATE_DRY_RUN: full
+  #
+  # Cap the number of PRs opened per hour / per run across all repos. The shared
+  # preset already sets prHourlyLimit:0 (unlimited) and prConcurrentLimit:10;
+  # override here only if a flood of new repos needs throttling at the bot level.
+  # RENOVATE_PR_HOURLY_LIMIT: "4"
+  # RENOVATE_PR_CONCURRENT_LIMIT: "10"
+  #
+  # Re-find PRs created by a previous bot identity (e.g. after rotating the group
+  # access token). Fetches all PRs instead of only the bot's own — slower, so
+  # enable temporarily during a token/account migration only.
+  # RENOVATE_IGNORE_PR_AUTHOR: "true"
+
+renovate:
+  # Override only the cache paths. The upstream template caches just
+  # `renovate/cache/renovate/repository/` (the repository cache) and not the
+  # datasource HTTP cache, so GitHub tag/release lookups were re-fetched cold on
+  # every run. Persisting the whole `renovate/cache/` tree keeps those lookups
+  # warm between runs. The cache key matches the template's (`<ref>-renovate`).
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-renovate
+    paths:
+      - renovate/cache/

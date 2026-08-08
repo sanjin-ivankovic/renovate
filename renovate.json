@@ -1,0 +1,28 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["local>example-org/renovate", "gitlab>renovate-bot/renovate-runner"],
+  "packageRules": [
+    {
+      "description": "renovate-runner lives on gitlab.com, not this self-hosted instance; point its version lookup there. Runner-only: the upstream template ref exists solely in this runner's .gitlab-ci.yml, so the rule stays here rather than in the shared preset.",
+      "matchDatasources": ["gitlab-releases"],
+      "matchPackageNames": ["renovate-bot/renovate-runner"],
+      "registryUrls": ["https://gitlab.com"]
+    },
+    {
+      "description": "Do not digest-pin the renovate engine image. The upstream runner preset ships a customManager that extracts CI_RENOVATE_IMAGE (ghcr.io/renovatebot/renovate:<tag>) with an OPTIONAL currentDigest group; config:best-practices then raises a pinDigest update, but because the line has no digest yet the writer finds nothing to replace (foundValue=undefined) — so the renovate/pin-dependencies branch fails with 'update failure' on every run. pinDigests:false drops that pin (the engine image's only pin-dependencies upgrade), emptying the branch. Tag bumps (43.x) still flow via the renovate self-update group.",
+      "matchManagers": ["custom.regex"],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/renovatebot/renovate"],
+      "pinDigests": false
+    },
+    {
+      "description": "The engine bumps itself; everything else in the homelab is merged by hand. platformAutomerge is REQUIRED here: with it off, Renovate can only merge during its own run, and this runner is a daily cron (0 3 * * *) — the MR would go green minutes after the run ended and then sit ~24h until the next one. Handing off to GitLab 'merge when pipeline succeeds' merges it as soon as CI passes. Major bumps are excluded: a 43->44 engine upgrade can change config semantics across every repo and is worth reading first.",
+      "matchManagers": ["custom.regex"],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/renovatebot/renovate"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "automerge": true,
+      "platformAutomerge": true
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Shared preset: track `# renovate:`-annotated Dockerfile ARG versions. Extend with `local>example-org/renovate:dockerfile-args` instead of copying the regex per repo. The first matchString handles ARGs whose value carries tag@sha256:<digest> so the digest is maintained alongside the tag; the second handles plain version ARGs.",
+  "customManagers": [
+    {
+      "description": "Extract tool versions from Dockerfile ARG variables with Renovate annotations (`# renovate: datasource=... depName=... [versioning=...] [extractVersion=...]` above the ARG line).",
+      "customType": "regex",
+      "managerFilePatterns": ["/Dockerfile$/"],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*ARG\\s+\\w+=[\"']?(?<currentValue>[^\"'\\s@]+)@(?<currentDigest>sha256:[a-f0-9]+)[\"']?",
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*ARG\\s+\\w+=[\"']?(?<currentValue>[^\"'\\s@]+)[\"']?(?:\\s|$)"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+    }
+  ]
+}

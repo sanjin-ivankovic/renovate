@@ -1,0 +1,33 @@
+# =============================================================================
+# example-org/renovate — central Renovate runner + shared preset (.gitignore)
+# =============================================================================
+
+# OS files
+.DS_Store
+._*
+Thumbs.db
+desktop.ini
+
+# IDE & editor files
+.vscode/*
+!.vscode/settings.json
+*.code-workspace
+.idea/
+*.swp
+*~
+.cursor/
+
+# Secrets (tokens come from CI/CD variables, never files)
+.env
+.env.*
+*.key
+*.pem
+
+# Renovate local run cache (the CI cache lives under renovate/cache/ in the job)
+renovate/cache/
+.renovate-cache/
+
+# Local caches & temp
+.cache/
+*.bak
+*.log

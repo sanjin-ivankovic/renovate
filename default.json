@@ -1,0 +1,114 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Shared Renovate base preset for the homelab repos. Each repo extends this via `local>example-org/renovate` and adds only its own packageRules, customManagers, and dashboard text.",
+  "extends": ["config:best-practices", "mergeConfidence:all-badges"],
+  "timezone": "Europe/Berlin",
+  "labels": ["renovate", "dependencies"],
+  "assignees": ["@maintainer"],
+  "assignAutomerge": true,
+  "rebaseWhen": "behind-base-branch",
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 0,
+  "branchConcurrentLimit": 10,
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "commitMessageAction": "Update",
+  "commitMessageTopic": "{{depName}}",
+  "automerge": false,
+  "platformAutomerge": false,
+  "separateMajorMinor": true,
+  "separateMinorPatch": true,
+  "separateMultipleMajor": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "renovate"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "pre-commit": {
+    "enabled": true
+  },
+  "registryAliases": {
+    "$CI_SERVER_FQDN": "source.example.com",
+    "$HARBOR_HOST": "registry.example.com"
+  },
+  "hostRules": [
+    {
+      "description": "Docker Hub authentication to avoid rate limiting (credentials injected bot-side via RENOVATE_HOST_RULES).",
+      "matchHost": "docker.io",
+      "hostType": "docker"
+    }
+  ],
+  "prBodyTemplate": "{{{header}}}{{{table}}}{{{warnings}}}{{{notes}}}{{{changelogs}}}{{{configDescription}}}{{{controls}}}{{{footer}}}",
+  "prBodyColumns": [
+    "Package",
+    "Update",
+    "Type",
+    "New value",
+    "Package file",
+    "References"
+  ],
+  "prBodyDefinitions": {
+    "Package": "{{{depNameLinked}}}{{#if newName}}{{#unless (equals depName newName)}} → {{{newNameLinked}}}{{/unless}}{{/if}}",
+    "Type": "{{{depType}}}",
+    "Update": "{{{updateType}}}",
+    "New value": "{{{newValue}}}",
+    "References": "{{{references}}}",
+    "Package file": "{{{packageFile}}}"
+  },
+  "packageRules": [
+    {
+      "description": "pre-commit/pre-commit-hooks ships a release roughly once a year while the repo stays active (weekly commits, not archived), so best-practices' 1-year abandonment check flags it in every repo. Three years still catches a project that really stops releasing. Matched by manager: the pre-commit manager looks hooks up through github-tags, and the dashboard's 'Datasource' column prints the manager name.",
+      "matchManagers": ["pre-commit"],
+      "matchPackageNames": ["pre-commit/pre-commit-hooks"],
+      "abandonmentThreshold": "3 years"
+    },
+    {
+      "description": "Projects that release about once a year or less while their repositories stay active (commits within the last month, not archived): community.hashi_vault (proxmox-infra ansible/requirements.yml), koalaman/shellcheck and pyyaml (ci-components .ci/docker/Dockerfile). best-practices' 1-year abandonment check flags them although they are maintained. Three years still catches a project that stops releasing. hvac is deliberately absent: its repository has had no commit since 2026-01, so its abandonment notice is a real signal.",
+      "matchPackageNames": ["community.hashi_vault", "koalaman/shellcheck", "pyyaml"],
+      "abandonmentThreshold": "3 years"
+    },
+    {
+      "description": "CI build base (.ci/docker/Dockerfile) - patch stabilization. The CI image is the shared build/validation base for every repo, so soak its tool/base-image updates before they land. Repos override their own app-dep soak locally.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "CI build base (.ci/docker/Dockerfile) - minor stabilization.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["minor"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "CI build base (.ci/docker/Dockerfile) - major stabilization.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "14 days"
+    },
+    {
+      "description": "Docker CLI build base in .ci/docker/Dockerfile (FROM docker:${DOCKER_VERSION}), one grouped ci(docker) MR. The ARG carries tag@sha256 and the native dockerfile manager rewrites both. pinDigests:false: with true, the inherited docker pinDigests probes a malformed manifests/<tag>@sha256:<digest> HEAD that 404s ('Could not determine new digest'); false suppresses that probe without affecting the digest the manager writes.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["docker"],
+      "groupName": "docker-ci-images",
+      "commitMessagePrefix": "ci(docker):",
+      "labels": ["ci", "docker"],
+      "pinDigests": false,
+      "prPriority": 8
+    },
+    {
+      "description": "No digest-only updates for version-tagged images. Pins (tag@sha256) stay and are rewritten together with every major/minor/patch tag bump; only the 'same tag, rebuilt upstream' MRs are dropped. Floating tags (latest, stable, major-only like dockerfile:1) are exempt: there the digest is the only thing that ever changes, so disabling it would freeze them.",
+      "matchUpdateTypes": ["digest"],
+      "matchCurrentValue": "!/^(latest|stable|\\d+)$/",
+      "enabled": false
+    },
+    {
+      "description": "Automerge digest, pin and patch updates once the MR pipeline passes. platformAutomerge hands the merge to GitLab, which every homelab project gates with 'Pipelines must succeed' (without that setting GitLab would merge before or despite failing tests). Minor and major updates stay manual MRs; a repo opts a dependency out with automerge: false in its own renovate.json.",
+      "matchUpdateTypes": ["digest", "pin", "pinDigest", "patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    }
+  ]
+}

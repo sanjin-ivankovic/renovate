@@ -1,0 +1,39 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Lane preset 'fast': disposable or rolling-release dependencies where a bad release costs a day, not data (searxng, lint and dev tooling, pre-commit hooks). Soak patch 1d / minor 1d / major 7d; patch, minor, digest and pin automerge; major is a manual merge. Releases without a timestamp (Harbor, GHCR) pass without a soak. Extend with `local>example-org/renovate:lane-fast(<file glob>)`; the argument is one matchFileNames glob, braces allowed.",
+  "packageRules": [
+    {
+      "description": "fast lane: label and timestamp behaviour",
+      "matchFileNames": ["{{args}}"],
+      "addLabels": ["lane::fast"],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
+    },
+    {
+      "description": "fast lane: patch and minor soak",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "minimumReleaseAge": "1 day"
+    },
+    {
+      "description": "fast lane: major soak",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "fast lane: automerge everything below major",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["patch", "minor", "digest", "pin", "pinDigest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false
+    },
+    {
+      "description": "fast lane: major is a manual merge",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "addLabels": ["manual-merge"]
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Lane preset 'careful': apps holding data you would miss, or on the alert path. Soak patch 3d / minor 7d / major 14d; patch, digest and pin automerge after the soak; minor and major are manual merges. GHCR and Quay images publish no release date and cannot be soaked: their MR opens at once and waits for a manual merge. Extend with `local>example-org/renovate:lane-careful(<file glob>)`; the argument is one matchFileNames glob, braces allowed.",
+  "packageRules": [
+    {
+      "description": "careful lane: label",
+      "matchFileNames": ["{{args}}"],
+      "addLabels": ["lane::careful"]
+    },
+    {
+      "description": "careful lane: patch soak",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "careful lane: minor soak",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["minor"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "careful lane: major soak",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "14 days"
+    },
+    {
+      "description": "careful lane: patch, digest and pin automerge after the soak",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["patch", "digest", "pin", "pinDigest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false
+    },
+    {
+      "description": "careful lane: minor and major are manual merges",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["minor", "major"],
+      "automerge": false,
+      "addLabels": ["manual-merge"]
+    },
+    {
+      "description": "careful lane: GHCR and Quay publish no release dates, so a soak can never pass and, with internalChecksFilter strict, Renovate would create no branch at all and leave the update as an unticked checkbox on the Dependency Dashboard. Open the MR straight away instead and leave the merge to a person.",
+      "matchFileNames": ["{{args}}"],
+      "matchPackageNames": ["ghcr.io/**", "quay.io/**"],
+      "minimumReleaseAgeBehaviour": "timestamp-optional",
+      "automerge": false,
+      "addLabels": ["manual-merge"]
+    }
+  ]
+}

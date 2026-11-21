@@ -1,0 +1,44 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Lane preset 'manual': critical dependencies whose merge deploys at once (Komodo redeploys a compose stack on push, a self-built image rebuilds) or that gate everything else (GitLab, its runner, Talos, Kubernetes). Same soak as the critical lane, patch 7d / minor 14d / major 21d, and nothing automerges. Extend with `local>example-org/renovate:lane-manual(<file glob>)`; the argument is one matchFileNames glob, braces allowed.",
+  "packageRules": [
+    {
+      "description": "manual lane: label, no automerge",
+      "matchFileNames": ["{{args}}"],
+      "addLabels": ["lane::manual", "manual-merge"],
+      "automerge": false
+    },
+    {
+      "description": "manual lane: patch soak",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "manual lane: minor soak",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["minor"],
+      "minimumReleaseAge": "14 days"
+    },
+    {
+      "description": "manual lane: major soak",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "21 days"
+    },
+    {
+      "description": "manual lane: override the shared digest, pin and patch automerge",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["patch", "digest", "pin", "pinDigest"],
+      "automerge": false
+    },
+    {
+      "description": "manual lane: GHCR and Quay publish no release dates, so a soak can never pass and, with internalChecksFilter strict, Renovate would create no branch at all and leave the update as an unticked checkbox on the Dependency Dashboard. Open the MR straight away instead and leave the merge to a person.",
+      "matchFileNames": ["{{args}}"],
+      "matchPackageNames": ["ghcr.io/**", "quay.io/**"],
+      "minimumReleaseAgeBehaviour": "timestamp-optional",
+      "automerge": false,
+      "addLabels": ["manual-merge"]
+    }
+  ]
+}

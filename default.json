@@ -1,0 +1,161 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Shared Renovate base preset for the homelab repos. Each repo extends this via `local>example-org/renovate` and adds only its own packageRules, customManagers, and dashboard text.",
+  "extends": ["config:best-practices", "mergeConfidence:all-badges"],
+  "timezone": "Europe/Berlin",
+  "labels": ["renovate", "dependencies"],
+  "assignees": ["@maintainer"],
+  "assignAutomerge": false,
+  "rebaseWhen": "behind-base-branch",
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 0,
+  "branchConcurrentLimit": 10,
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "commitMessageAction": "Update",
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageLowerCase": "never",
+  "logLevelRemap": [
+    {
+      "matchMessage": "/did not have a releaseTimestamp, but as we're running with minimumReleaseAgeBehaviour=timestamp-optional/",
+      "newLogLevel": "info"
+    }
+  ],
+  "automerge": false,
+  "platformAutomerge": false,
+  "separateMajorMinor": true,
+  "separateMinorPatch": true,
+  "separateMultipleMajor": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "renovate"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "pre-commit": {
+    "enabled": true
+  },
+  "registryAliases": {
+    "$CI_SERVER_FQDN": "source.example.com",
+    "$HARBOR_HOST": "registry.example.com"
+  },
+  "hostRules": [
+    {
+      "description": "Docker Hub authentication to avoid rate limiting (credentials injected bot-side via RENOVATE_HOST_RULES).",
+      "matchHost": "docker.io",
+      "hostType": "docker"
+    }
+  ],
+  "prBodyTemplate": "{{{header}}}{{{table}}}{{{warnings}}}{{{notes}}}{{{changelogs}}}{{{configDescription}}}{{{controls}}}{{{footer}}}",
+  "prBodyColumns": [
+    "Package",
+    "Update",
+    "Type",
+    "New value",
+    "Package file",
+    "References"
+  ],
+  "prBodyDefinitions": {
+    "Package": "{{{depNameLinked}}}{{#if newName}}{{#unless (equals depName newName)}} → {{{newNameLinked}}}{{/unless}}{{/if}}",
+    "Type": "{{{depType}}}",
+    "Update": "{{{updateType}}}",
+    "New value": "{{{newValue}}}",
+    "References": "{{{references}}}",
+    "Package file": "{{{packageFile}}}"
+  },
+  "packageRules": [
+    {
+      "description": "pre-commit/pre-commit-hooks ships a release roughly once a year while the repo stays active (weekly commits, not archived), so best-practices' 1-year abandonment check flags it in every repo. Three years still catches a project that really stops releasing. Matched by manager: the pre-commit manager looks hooks up through github-tags, and the dashboard's 'Datasource' column prints the manager name.",
+      "matchManagers": ["pre-commit"],
+      "matchPackageNames": ["pre-commit/pre-commit-hooks"],
+      "abandonmentThreshold": "3 years"
+    },
+    {
+      "description": "Projects that release about once a year or less while their repositories stay active (commits within the last month, not archived): community.hashi_vault (proxmox-infra ansible/requirements.yml), koalaman/shellcheck and pyyaml (ci-components .ci/docker/Dockerfile). best-practices' 1-year abandonment check flags them although they are maintained. Three years still catches a project that stops releasing. hvac is deliberately absent: its repository has had no commit since 2026-01, so its abandonment notice is a real signal.",
+      "matchPackageNames": ["community.hashi_vault", "koalaman/shellcheck", "pyyaml"],
+      "abandonmentThreshold": "3 years"
+    },
+    {
+      "description": "Default soak for anything no lane covers: the careful lane's patch 3d / minor 7d / major 14d. A repo assigns its paths to a lane (lane-*.json), whose rules come later and win; this only catches what nobody classified yet.",
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Default minor soak for unclassified dependencies.",
+      "matchUpdateTypes": ["minor"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "Default major soak for unclassified dependencies.",
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "14 days"
+    },
+    {
+      "description": "GHCR and Quay publish no release dates, so a soak can never pass and, with internalChecksFilter strict, Renovate would create no branch and only list the update on the Dependency Dashboard. timestamp-optional opens the MR without a soak; whether it automerges follows the update type and the lane (careful, critical and manual lanes make these manual).",
+      "matchPackageNames": ["ghcr.io/**", "quay.io/**"],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
+    },
+    {
+      "description": "CI build base (.ci/docker/Dockerfile): the standard lane. Every repo that builds a CI image runs ci-components' ci-image-test on the MR (build without push, smoke test), so a broken tool bump fails before merge: soak patch 1d / minor 3d / major 7d, patch and minor merge themselves, major stays manual. Releases without a date (Harbor, GHCR) pass without a soak. Written out here rather than extending lane-standard, because a preset in extends comes before this file's default soak rules and would lose to them.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "addLabels": ["lane::standard"],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
+    },
+    {
+      "description": "CI build base - patch soak.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "1 day"
+    },
+    {
+      "description": "CI build base - minor soak.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["minor"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "CI build base - major soak.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "CI build base - minor updates merge themselves too (patch, digest and pin through the estate-wide rule below).",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["minor"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false
+    },
+    {
+      "description": "CI build base - major is a manual merge.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["manual-merge"]
+    },
+    {
+      "description": "Docker CLI build base in .ci/docker/Dockerfile (FROM docker:${DOCKER_VERSION}), one grouped ci(docker) MR. The ARG carries tag@sha256 and the native dockerfile manager rewrites both. pinDigests:false: with true, the inherited docker pinDigests probes a malformed manifests/<tag>@sha256:<digest> HEAD that 404s ('Could not determine new digest'); false suppresses that probe without affecting the digest the manager writes.",
+      "matchFileNames": [".ci/docker/Dockerfile"],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["docker"],
+      "groupName": "docker-ci-images",
+      "commitMessagePrefix": "ci(docker):",
+      "labels": ["ci", "docker"],
+      "pinDigests": false,
+      "prPriority": 8
+    },
+    {
+      "description": "No digest-only updates for version-tagged images. Pins (tag@sha256) stay and are rewritten together with every major/minor/patch tag bump; only the 'same tag, rebuilt upstream' MRs are dropped. Floating tags (latest, stable, major-only like dockerfile:1) are exempt: there the digest is the only thing that ever changes, so disabling it would freeze them.",
+      "matchUpdateTypes": ["digest"],
+      "matchCurrentValue": "!/^(latest|stable|\\d+)$/",
+      "enabled": false
+    },
+    {
+      "description": "Automerge digest, pin and patch updates once the MR pipeline passes. platformAutomerge is false on purpose: GitLab CE's 'Pipelines must succeed' waits only for the MR pipeline and ignores Renovate's own renovate/stability-days commit status, so a GitLab-side merge skips every minimumReleaseAge soak (argo-apps !613 merged two minutes after it opened, status still pending). Renovate merges on its next run once every branch status, the soak included, is green. Minor and major updates stay manual MRs; a repo opts a dependency out with automerge: false in its own renovate.json.",
+      "matchUpdateTypes": ["digest", "pin", "pinDigest", "patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false
+    }
+  ]
+}

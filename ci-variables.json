@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Shared preset: track `# renovate:`-annotated *_IMAGE and *_VERSION entries under `variables:` in .gitlab-ci.yml. The gitlabci manager reads only job and global `image:` keys, so a variable (CI_IMAGE, CI_BASE_IMAGE, NODE_IMAGE, WRANGLER_VERSION) is invisible without this. Extend with `local>example-org/renovate:ci-variables`.",
+  "customManagers": [
+    {
+      "description": "Annotated *_IMAGE variables holding `<repo>:<tag>@sha256:<digest>`. The `\\S*?:` prefix consumes `<repo>:` (variables such as $HARBOR_HOST included), so currentValue is only the tag and autoreplace rewrites tag and digest while leaving the repo intact.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.gitlab-ci\\.yml$/"],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?\\s*\\n\\s*\\w+_IMAGE:\\s*\\S*?:(?<currentValue>[^\\s@:]+)@(?<currentDigest>sha256:[a-f0-9]+)"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}docker{{/if}}"
+    },
+    {
+      "description": "Annotated *_VERSION variables holding a plain version (a CLI run through npx, for example). Versioning follows the datasource.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.gitlab-ci\\.yml$/"],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n\\s*\\w+_VERSION:\\s*\"?(?<currentValue>[^\\s\"]+)\"?"
+      ]
+    }
+  ]
+}

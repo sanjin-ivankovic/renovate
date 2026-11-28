@@ -1,0 +1,45 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Lane preset 'standard': stateless or easily rebuilt dependencies whose MR pipeline proves something (a build, a render, tests). Soak patch 1d / minor 3d / major 7d; patch, minor, digest and pin automerge; major is a manual merge. Releases without a timestamp (Harbor, GHCR) pass without a soak. Extend with `local>example-org/renovate:lane-standard(<file glob>)`; the argument is one matchFileNames glob, braces allowed.",
+  "packageRules": [
+    {
+      "description": "standard lane: label and timestamp behaviour",
+      "matchFileNames": ["{{args}}"],
+      "addLabels": ["lane::standard"],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
+    },
+    {
+      "description": "standard lane: patch soak",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "1 day"
+    },
+    {
+      "description": "standard lane: minor soak",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["minor"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "standard lane: major soak",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "standard lane: automerge everything below major",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["patch", "minor", "digest", "pin", "pinDigest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false
+    },
+    {
+      "description": "standard lane: major is a manual merge",
+      "matchFileNames": ["{{args}}"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "addLabels": ["manual-merge"]
+    }
+  ]
+}
